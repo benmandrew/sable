@@ -15,13 +15,14 @@ fn get_buf_pixel(x: u32, y: u32, width: u32, height: u32, grid: &Grid) -> u32 {
     let xb = (xf * grid::WIDTH as f64) as usize;
     let yb = (yf * grid::HEIGHT as f64) as usize;
     let v = grid.get_buf()[yb * grid::WIDTH + xb];
-    v as u32 * u32::MAX
+    v as u32 * (u32::MAX / 256)
 }
 
 fn handle_redraw_request(
     window: &Rc<Window>,
     surface: &mut Surface<Rc<Window>, Rc<Window>>,
     grid: &mut Grid,
+    i: u32,
 ) {
     let (width, height) = {
         let size = window.inner_size();
@@ -41,9 +42,8 @@ fn handle_redraw_request(
     }
     buffer.present().unwrap();
     // Every 0.1 seconds
-    sleep(Duration::new(0, 100000000));
-    print!("Frame\n");
-    grid.next();
+    // sleep(Duration::new(0, 100000000));
+    grid.next(i);
     window.request_redraw();
 }
 
@@ -52,6 +52,7 @@ pub fn main(grid: &mut Grid) {
     let window = Rc::new(WindowBuilder::new().build(&event_loop).unwrap());
     let context = softbuffer::Context::new(window.clone()).unwrap();
     let mut surface = softbuffer::Surface::new(&context, window.clone()).unwrap();
+    let mut i = 0;
     event_loop
         .run(move |event, elwt| {
             elwt.set_control_flow(ControlFlow::Wait);
@@ -59,13 +60,14 @@ pub fn main(grid: &mut Grid) {
                 Event::WindowEvent {
                     window_id,
                     event: WindowEvent::RedrawRequested,
-                } if window_id == window.id() => handle_redraw_request(&window, &mut surface, grid),
+                } if window_id == window.id() => {
+                    handle_redraw_request(&window, &mut surface, grid, i);
+                    i = i + 1;
+                }
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
                     window_id,
-                } if window_id == window.id() => {
-                    elwt.exit();
-                }
+                } if window_id == window.id() => elwt.exit(),
                 _ => {}
             }
         })

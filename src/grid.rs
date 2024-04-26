@@ -1,5 +1,7 @@
-pub const WIDTH: usize = 20;
-pub const HEIGHT: usize = 20;
+use rand::{rngs::ThreadRng, Rng};
+
+pub const WIDTH: usize = 100;
+pub const HEIGHT: usize = 100;
 pub const SIZE: usize = WIDTH * HEIGHT;
 
 // Computes the x and y coordinates from the flat index i
@@ -18,12 +20,18 @@ fn clear(buf: &mut [u8; SIZE]) {
     }
 }
 
-fn next(source: &mut [u8; SIZE], target: &mut [u8; SIZE]) {
+fn next(source: &mut [u8; SIZE], target: &mut [u8; SIZE], rng: &mut ThreadRng, frame: u32) {
     clear(target);
+
+    for _ in 0..3 {
+        let i = rng.gen_range(0..WIDTH);
+        source[i] = (frame % 255) as u8;
+    }
+
     for i in (0..SIZE).rev() {
         let (x, y) = to_coords(i);
         let below_i = to_index(x, y + 1);
-        if y < HEIGHT - 10 && source[below_i] == 0 {
+        if y < HEIGHT - 1 && source[below_i] == 0 {
             target[below_i] = source[i];
             target[i] = 0;
         } else {
@@ -41,36 +49,39 @@ pub struct Grid {
     which: Buffer,
     front: [u8; SIZE],
     back: [u8; SIZE],
+    rng: ThreadRng,
 }
 
 impl Grid {
     pub fn new() -> Grid {
         let front = [0_u8; SIZE];
         let back = [0_u8; SIZE];
+        let rng = rand::thread_rng();
         let mut v = Grid {
             which: Buffer::Front,
             front,
             back,
+            rng,
         };
         v.which = Buffer::Front;
         for i in 0..SIZE {
             v.front[i] = 0;
             v.back[i] = 0;
-            if i < WIDTH {
-                v.front[i] = 1;
-            }
+            // if i < WIDTH {
+            //     v.front[i] = 1;
+            // }
         }
         v
     }
 
-    pub fn next(&mut self) {
+    pub fn next(&mut self, frame: u32) {
         match self.which {
             Buffer::Front => {
-                next(&mut self.front, &mut self.back);
+                next(&mut self.front, &mut self.back, &mut self.rng, frame);
                 self.which = Buffer::Back
             }
             Buffer::Back => {
-                next(&mut self.back, &mut self.front);
+                next(&mut self.back, &mut self.front, &mut self.rng, frame);
                 self.which = Buffer::Front
             }
         }
