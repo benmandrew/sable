@@ -9,13 +9,41 @@ use winit::window::{Window, WindowBuilder};
 
 use crate::grid::{self, Grid};
 
+fn hsv_to_rgb(h: f64) -> u32 {
+    let s = 1.0;
+    let v = 1.0;
+    let c = s * v;
+    let x = c * (1.0 - f64::abs((h / (u8::MAX / 6) as f64) % 2.0 - 1.0));
+    let m = v - c;
+    let bound = u8::MAX as f64;
+    let (r, g, b) = if h < bound / 6.0 {
+        (c, x, 0.0)
+    } else if h < bound / 3.0 {
+        (c, x, 0.0)
+    } else if h < bound / 2.0 {
+        (0.0, c, x)
+    } else if h < (bound / 3.0) * 2.0 {
+        (0.0, x, c)
+    } else if h < (bound / 6.0) * 5.0 {
+        (x, 0.0, c)
+    } else {
+        (c, 0.0, x)
+    };
+    let (r, g, b) = ((r + m) * 255.0, (g + m) * 255.0, (b + m) * 255.0);
+    (b as u32) | ((g as u32) << 8) | ((r as u32) << 16)
+}
+
 fn get_buf_pixel(x: u32, y: u32, width: u32, height: u32, grid: &Grid) -> u32 {
     let xf = x as f64 / width as f64;
     let yf = y as f64 / height as f64;
     let xb = (xf * grid::WIDTH as f64) as usize;
     let yb = (yf * grid::HEIGHT as f64) as usize;
     let v = grid.get_buf()[yb * grid::WIDTH + xb];
-    v as u32 * (u32::MAX / 256)
+    if v == 0 {
+        0
+    } else {
+        hsv_to_rgb(v as f64)
+    }
 }
 
 fn handle_redraw_request(

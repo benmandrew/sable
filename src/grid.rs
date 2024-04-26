@@ -1,7 +1,7 @@
 use rand::{rngs::ThreadRng, Rng};
 
-pub const WIDTH: usize = 100;
-pub const HEIGHT: usize = 100;
+pub const WIDTH: usize = 75;
+pub const HEIGHT: usize = 75;
 pub const SIZE: usize = WIDTH * HEIGHT;
 
 // Computes the x and y coordinates from the flat index i
@@ -23,9 +23,11 @@ fn clear(buf: &mut [u8; SIZE]) {
 fn next(source: &mut [u8; SIZE], target: &mut [u8; SIZE], rng: &mut ThreadRng, frame: u32) {
     clear(target);
 
-    for _ in 0..3 {
+    for _ in 0..2 {
         let i = rng.gen_range(0..WIDTH);
-        source[i] = (frame % 255) as u8;
+        if source[i] == 0 {
+            source[i] = ((frame / 7) % 254 + 1) as u8;
+        }
     }
 
     for i in (0..SIZE).rev() {
@@ -67,9 +69,6 @@ impl Grid {
         for i in 0..SIZE {
             v.front[i] = 0;
             v.back[i] = 0;
-            // if i < WIDTH {
-            //     v.front[i] = 1;
-            // }
         }
         v
     }
