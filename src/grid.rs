@@ -1,7 +1,7 @@
 use rand::{rngs::ThreadRng, Rng};
 
-pub const WIDTH: usize = 75;
-pub const HEIGHT: usize = 75;
+pub const WIDTH: usize = 50;
+pub const HEIGHT: usize = 50;
 pub const SIZE: usize = WIDTH * HEIGHT;
 
 // Computes the x and y coordinates from the flat index i
@@ -20,24 +20,55 @@ fn clear(buf: &mut [u8; SIZE]) {
     }
 }
 
-fn next(source: &mut [u8; SIZE], target: &mut [u8; SIZE], rng: &mut ThreadRng, frame: u32) {
-    clear(target);
-
-    for _ in 0..2 {
-        let i = rng.gen_range(0..WIDTH);
-        if source[i] == 0 {
-            source[i] = ((frame / 7) % 254 + 1) as u8;
+fn spawn(frame: u32, rng: &mut ThreadRng, source: &mut [u8; SIZE]) {
+    if frame % 2 == 0 {
+        for _ in 0..4 {
+            let i = rng.gen_range(0..WIDTH);
+            if source[i + WIDTH] == 0 {
+                source[i + WIDTH] = ((frame / 2) % 254 + 1) as u8;
+            }
         }
     }
+}
 
+fn next(rng: &mut ThreadRng, source: &[u8; SIZE], target: &mut [u8; SIZE]) {
+    clear(target);
     for i in (0..SIZE).rev() {
         let (x, y) = to_coords(i);
-        let below_i = to_index(x, y + 1);
-        if y < HEIGHT - 1 && source[below_i] == 0 {
-            target[below_i] = source[i];
-            target[i] = 0;
-        } else {
+        let mut moved = false;
+        if y < HEIGHT - 1 && source[i] != 0 {
+            let below = to_index(x, y + 1);
+            if source[below] == 0 {
+                target[below] = source[i];
+                moved = true;
+            }
+            let lateral_modifier = rng.gen_range(0..2) as isize * 2 - 1;
+            // let lateral_modifier = 1;
+            if x as isize + lateral_modifier >= 0
+                && x as isize + lateral_modifier < WIDTH as isize
+                && !moved
+            {
+                let below_lateral = to_index(((x as isize) + lateral_modifier) as usize, y + 1);
+                if source[below_lateral] == 0 {
+                    target[below_lateral] = source[i];
+                    moved = true;
+                }
+            }
+            if x as isize - lateral_modifier >= 0
+                && x as isize - lateral_modifier < WIDTH as isize
+                && !moved
+            {
+                let below_lateral = to_index(((x as isize) - lateral_modifier) as usize, y + 1);
+                if source[below_lateral] == 0 {
+                    target[below_lateral] = source[i];
+                    moved = true;
+                }
+            }
+        }
+        if !moved {
             target[i] = source[i];
+        } else {
+            target[i] = 0;
         }
     }
 }
@@ -76,11 +107,13 @@ impl Grid {
     pub fn next(&mut self, frame: u32) {
         match self.which {
             Buffer::Front => {
-                next(&mut self.front, &mut self.back, &mut self.rng, frame);
+                spawn(frame, &mut self.rng, &mut self.front);
+                next(&mut self.rng, &self.front, &mut self.back);
                 self.which = Buffer::Back
             }
             Buffer::Back => {
-                next(&mut self.back, &mut self.front, &mut self.rng, frame);
+                spawn(frame, &mut self.rng, &mut self.back);
+                next(&mut self.rng, &self.back, &mut self.front);
                 self.which = Buffer::Front
             }
         }

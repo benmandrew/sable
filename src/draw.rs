@@ -1,8 +1,8 @@
 use softbuffer::Surface;
 use std::num::NonZeroU32;
 use std::rc::Rc;
-use std::thread::sleep;
-use std::time::Duration;
+// use std::thread::sleep;
+// use std::time::Duration;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
@@ -50,7 +50,7 @@ fn handle_redraw_request(
     window: &Rc<Window>,
     surface: &mut Surface<Rc<Window>, Rc<Window>>,
     grid: &mut Grid,
-    i: u32,
+    frame: u32,
 ) {
     let (width, height) = {
         let size = window.inner_size();
@@ -71,7 +71,7 @@ fn handle_redraw_request(
     buffer.present().unwrap();
     // Every 0.1 seconds
     // sleep(Duration::new(0, 100000000));
-    grid.next(i);
+    grid.next(frame);
     window.request_redraw();
 }
 
@@ -80,7 +80,7 @@ pub fn main(grid: &mut Grid) {
     let window = Rc::new(WindowBuilder::new().build(&event_loop).unwrap());
     let context = softbuffer::Context::new(window.clone()).unwrap();
     let mut surface = softbuffer::Surface::new(&context, window.clone()).unwrap();
-    let mut i = 0;
+    let mut frame = 0;
     event_loop
         .run(move |event, elwt| {
             elwt.set_control_flow(ControlFlow::Wait);
@@ -89,8 +89,8 @@ pub fn main(grid: &mut Grid) {
                     window_id,
                     event: WindowEvent::RedrawRequested,
                 } if window_id == window.id() => {
-                    handle_redraw_request(&window, &mut surface, grid, i);
-                    i = i + 1;
+                    handle_redraw_request(&window, &mut surface, grid, frame);
+                    frame = frame + 1;
                 }
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
