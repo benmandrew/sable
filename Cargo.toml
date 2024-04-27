@@ -1,9 +1,10 @@
 [package]
-name = "rust"
+name = "sable"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
 error-iter = "0.4.1"
 log = "0.4.21"
 pixels = "0.13.0"

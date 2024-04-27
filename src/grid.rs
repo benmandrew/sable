@@ -1,7 +1,7 @@
 use rand::{rngs::ThreadRng, Rng};
 
-pub const WIDTH: usize = 250;
-pub const HEIGHT: usize = 250;
+pub const WIDTH: usize = 150;
+pub const HEIGHT: usize = 150;
 pub const SIZE: usize = WIDTH * HEIGHT;
 
 // Computes the x and y coordinates from the flat index i
