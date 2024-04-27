@@ -29,45 +29,49 @@ fn spawn(frame: u32, rng: &mut ThreadRng, source: &mut [u8; SIZE]) {
     }
 }
 
+fn next_pixel(rng: &mut ThreadRng, source: &[u8; SIZE], target: &mut [u8; SIZE], index: usize) {
+    let (x, y) = to_coords(index);
+    let mut moved = false;
+    if y < HEIGHT - 1 && source[index] != 0 {
+        let below = to_index(x, y + 1);
+        if source[below] == 0 {
+            target[below] = source[index];
+            moved = true;
+        }
+        let lateral_modifier = rng.gen_range(0..2) as isize * 2 - 1;
+        // let lateral_modifier = 1;
+        if x as isize + lateral_modifier >= 0
+            && x as isize + lateral_modifier < WIDTH as isize
+            && !moved
+        {
+            let below_lateral = to_index(((x as isize) + lateral_modifier) as usize, y + 1);
+            if source[below_lateral] == 0 {
+                target[below_lateral] = source[index];
+                moved = true;
+            }
+        }
+        if x as isize - lateral_modifier >= 0
+            && x as isize - lateral_modifier < WIDTH as isize
+            && !moved
+        {
+            let below_lateral = to_index(((x as isize) - lateral_modifier) as usize, y + 1);
+            if source[below_lateral] == 0 {
+                target[below_lateral] = source[index];
+                moved = true;
+            }
+        }
+    }
+    if !moved {
+        target[index] = source[index];
+    } else {
+        target[index] = 0;
+    }
+}
+
 fn next(rng: &mut ThreadRng, source: &[u8; SIZE], target: &mut [u8; SIZE]) {
     clear(target);
     for i in (0..SIZE).rev() {
-        let (x, y) = to_coords(i);
-        let mut moved = false;
-        if y < HEIGHT - 1 && source[i] != 0 {
-            let below = to_index(x, y + 1);
-            if source[below] == 0 {
-                target[below] = source[i];
-                moved = true;
-            }
-            let lateral_modifier = rng.gen_range(0..2) as isize * 2 - 1;
-            // let lateral_modifier = 1;
-            if x as isize + lateral_modifier >= 0
-                && x as isize + lateral_modifier < WIDTH as isize
-                && !moved
-            {
-                let below_lateral = to_index(((x as isize) + lateral_modifier) as usize, y + 1);
-                if source[below_lateral] == 0 {
-                    target[below_lateral] = source[i];
-                    moved = true;
-                }
-            }
-            if x as isize - lateral_modifier >= 0
-                && x as isize - lateral_modifier < WIDTH as isize
-                && !moved
-            {
-                let below_lateral = to_index(((x as isize) - lateral_modifier) as usize, y + 1);
-                if source[below_lateral] == 0 {
-                    target[below_lateral] = source[i];
-                    moved = true;
-                }
-            }
-        }
-        if !moved {
-            target[i] = source[i];
-        } else {
-            target[i] = 0;
-        }
+        next_pixel(rng, source, target, i)
     }
 }
 
