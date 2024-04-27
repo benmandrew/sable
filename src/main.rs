@@ -1,7 +1,9 @@
-mod draw;
+mod colour;
 mod grid;
+mod pixels;
+mod softbuffer;
 
 fn main() {
     let mut s = grid::Grid::new();
-    draw::main(&mut s);
+    pixels::main(&mut s);
 }

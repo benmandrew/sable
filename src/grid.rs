@@ -1,7 +1,7 @@
 use rand::{rngs::ThreadRng, Rng};
 
-pub const WIDTH: usize = 50;
-pub const HEIGHT: usize = 50;
+pub const WIDTH: usize = 250;
+pub const HEIGHT: usize = 250;
 pub const SIZE: usize = WIDTH * HEIGHT;
 
 // Computes the x and y coordinates from the flat index i
@@ -22,10 +22,10 @@ fn clear(buf: &mut [u8; SIZE]) {
 
 fn spawn(frame: u32, rng: &mut ThreadRng, source: &mut [u8; SIZE]) {
     if frame % 2 == 0 {
-        for _ in 0..4 {
+        for _ in 0..40 {
             let i = rng.gen_range(0..WIDTH);
             if source[i + WIDTH] == 0 {
-                source[i + WIDTH] = ((frame / 2) % 254 + 1) as u8;
+                source[i + WIDTH] = ((frame / 8) % 254 + 1) as u8;
             }
         }
     }
