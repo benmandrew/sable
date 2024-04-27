@@ -22,11 +22,7 @@ fn handle_redraw_request(window: &Rc<Window>, pixels: &mut Pixels, grid: &mut Gr
         } else {
             colour::hsv_to_rgb(v as f64)
         };
-        let v = v.to_ne_bytes();
-        for i in 0..3 {
-            pixel[i] = v[i];
-        }
-        pixel[3] = 0xff;
+        pixel.copy_from_slice(&v.to_ne_bytes());
     }
     pixels.render().unwrap();
     grid.next(frame_i);
@@ -63,7 +59,7 @@ pub fn main(grid: &mut Grid) {
                     event: WindowEvent::RedrawRequested,
                 } if window_id == window.id() => {
                     handle_redraw_request(&window, &mut pixels, grid, frame);
-                    frame = frame + 1;
+                    frame += 1;
                 }
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,

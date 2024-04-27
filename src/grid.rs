@@ -15,9 +15,7 @@ fn to_index(x: usize, y: usize) -> usize {
 }
 
 fn clear(buf: &mut [u8; SIZE]) {
-    for i in 0..SIZE {
-        buf[i] = 0;
-    }
+    buf.fill(0);
 }
 
 fn spawn(frame: u32, rng: &mut ThreadRng, source: &mut [u8; SIZE]) {

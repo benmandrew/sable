@@ -67,7 +67,7 @@ pub fn main(grid: &mut Grid) {
                     event: WindowEvent::RedrawRequested,
                 } if window_id == window.id() => {
                     handle_redraw_request(&window, &mut surface, grid, frame);
-                    frame = frame + 1;
+                    frame += 1;
                 }
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
