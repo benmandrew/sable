@@ -8,7 +8,7 @@ pub fn hsv_to_rgb(h: f64) -> u32 {
     let (r, g, b) = if h < bound / 6.0 {
         (c, x, 0.0)
     } else if h < bound / 3.0 {
-        (c, x, 0.0)
+        (x, c, 0.0)
     } else if h < bound / 2.0 {
         (0.0, c, x)
     } else if h < (bound / 3.0) * 2.0 {
