@@ -8,14 +8,21 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
 use crate::colour;
-use crate::grid::{self, Grid};
+use crate::grid::Grid;
 
-fn get_buf_pixel(x: u32, y: u32, width: u32, height: u32, buf: &[u8; grid::SIZE]) -> u32 {
-    let xf = x as f64 / width as f64;
-    let yf = y as f64 / height as f64;
-    let xb = (xf * grid::WIDTH as f64) as usize;
-    let yb = (yf * grid::HEIGHT as f64) as usize;
-    let v = buf[yb * grid::WIDTH + xb];
+fn get_buf_pixel(
+    x: u32,
+    y: u32,
+    screen_width: u32,
+    screen_height: u32,
+    buf: &Vec<u8>,
+    (buf_width, buf_height): (usize, usize),
+) -> u32 {
+    let xf = x as f64 / screen_width as f64;
+    let yf = y as f64 / screen_height as f64;
+    let xb = (xf * buf_width as f64) as usize;
+    let yb = (yf * buf_height as f64) as usize;
+    let v = buf[yb * buf_width + xb];
     if v == 0 {
         0
     } else {
@@ -43,7 +50,14 @@ fn handle_redraw_request(
     for i in 0..(width * height) {
         let y = i / width;
         let x = i % width;
-        buffer[i as usize] = get_buf_pixel(x, y, width, height, grid.get_buf());
+        buffer[i as usize] = get_buf_pixel(
+            x,
+            y,
+            width,
+            height,
+            grid.get_front(),
+            grid.get_dims(),
+        );
     }
     buffer.present().unwrap();
     // Every 0.1 seconds
@@ -56,7 +70,8 @@ pub fn main(grid: &mut Grid) {
     let event_loop = EventLoop::new().unwrap();
     let window = Rc::new(WindowBuilder::new().build(&event_loop).unwrap());
     let context = softbuffer::Context::new(window.clone()).unwrap();
-    let mut surface = softbuffer::Surface::new(&context, window.clone()).unwrap();
+    let mut surface =
+        softbuffer::Surface::new(&context, window.clone()).unwrap();
     let mut frame = 0;
     event_loop
         .run(move |event, elwt| {

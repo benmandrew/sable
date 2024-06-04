@@ -13,10 +13,10 @@ struct Cli {
 }
 
 #[derive(Args)]
-#[group(required = true, multiple = false)]
+#[group(required = false, multiple = false)]
 struct Frontend {
     /// use `pixels` frontend
-    #[arg(long)]
+    #[arg(long, default_value_t = true)]
     pixels: bool,
 
     /// use `shortbuffer` frontend
@@ -34,6 +34,6 @@ fn main() {
     } else {
         panic!()
     };
-    let mut s = grid::Grid::new();
+    let mut s = grid::Grid::new(100, 100);
     main(&mut s);
 }

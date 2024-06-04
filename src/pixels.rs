@@ -6,23 +6,34 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
 use crate::colour;
-use crate::grid::{self, Grid};
+use crate::grid::Grid;
 
-fn handle_redraw_request(window: &Rc<Window>, pixels: &mut Pixels, grid: &mut Grid, frame_i: u32) {
-    let (width, height) = {
-        let size = window.inner_size();
-        (size.width, size.height)
+fn get_dims(window: &Rc<Window>) -> (u32, u32) {
+    let size = window.inner_size();
+    (size.width, size.height)
+}
+
+fn render(i: usize, source: &Vec<u8>, target: &mut [u8]) {
+    let v = source[i];
+    let v = match v {
+        0 => 0,
+        v => colour::hsv_to_rgb(v as f64),
     };
+    target.copy_from_slice(&v.to_ne_bytes());
+}
+
+fn handle_redraw_request(
+    window: &Rc<Window>,
+    pixels: &mut Pixels,
+    grid: &mut Grid,
+    frame_i: u32,
+) {
+    let (width, height) = get_dims(window);
     pixels.resize_surface(width, height).unwrap();
-    let frame = pixels.frame_mut();
-    for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
-        let v = grid.get_buf()[i];
-        let v = if v == 0 {
-            0
-        } else {
-            colour::hsv_to_rgb(v as f64)
-        };
-        pixel.copy_from_slice(&v.to_ne_bytes());
+    let target = pixels.frame_mut();
+    let source = grid.get_front();
+    for (i, pixel) in target.chunks_exact_mut(4).enumerate() {
+        render(i, source, pixel)
     }
     pixels.render().unwrap();
     grid.next(frame_i);
@@ -30,9 +41,11 @@ fn handle_redraw_request(window: &Rc<Window>, pixels: &mut Pixels, grid: &mut Gr
 }
 
 pub fn main(grid: &mut Grid) {
+    let (width, height) = grid.get_dims();
+    grid.spawn(0);
     let event_loop = EventLoop::new().unwrap();
     let window = {
-        let size = LogicalSize::new(grid::WIDTH as f64, grid::HEIGHT as f64);
+        let size = LogicalSize::new(width as f64, height as f64);
         Rc::new(
             WindowBuilder::new()
                 .with_title("Hello Pixels")
@@ -45,8 +58,9 @@ pub fn main(grid: &mut Grid) {
 
     let mut pixels = {
         let window_size = window.inner_size();
-        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new(grid::WIDTH as u32, grid::HEIGHT as u32, surface_texture).unwrap()
+        let surface_texture =
+            SurfaceTexture::new(window_size.width, window_size.height, &window);
+        Pixels::new(width as u32, height as u32, surface_texture).unwrap()
     };
 
     let mut frame = 0;
