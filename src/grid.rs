@@ -1,29 +1,24 @@
 use crossbeam::scope;
-use rand::{rngs::ThreadRng, Rng};
-use std::{sync::Arc, thread, time};
+use std::sync::Arc;
+
+static N_THREADS: usize = 2;
 
 pub struct Config {
     width: usize,
     height: usize,
     size: usize,
-    n_threads: usize,
     ribbon_len: usize,
-    // rng: ThreadRng,
 }
 
 impl Config {
     fn new(width: usize, height: usize) -> Config {
         let size = width * height;
-        let n_threads = 2;
-        let ribbon_len = size / n_threads;
-        // let rng = rand::thread_rng();
+        let ribbon_len = size / N_THREADS;
         Config {
             width,
             height,
             size,
-            n_threads,
             ribbon_len,
-            // rng,
         }
     }
 
@@ -31,10 +26,7 @@ impl Config {
         (self.width, self.height)
     }
 
-    fn index_to_x(&self, i: usize) -> usize {
-        i % self.width
-    }
-
+    // Computes the y coordinate from the flat index i
     fn index_to_y(&self, i: usize) -> usize {
         i / self.width
     }
@@ -43,11 +35,26 @@ impl Config {
     fn index_to_coords(&self, i: usize) -> (usize, usize) {
         (i % self.width, i / self.width)
     }
+}
 
-    // Computes the flat index i from the x and y coordinates
-    fn coords_to_index(&self, x: usize, y: usize) -> usize {
-        y * self.width + x
+fn move_lateral(
+    cfg: &Config,
+    x: usize,
+    offset: isize,
+    source: &[u8],
+    target: &mut [u8],
+    ribbon_i: usize,
+    real_i: usize,
+) -> bool {
+    let mut moved = false;
+    if x as isize + offset >= 0 && x as isize + offset < cfg.width as isize {
+        let below_lateral = ((real_i + cfg.width) as isize + offset) as usize;
+        if source[below_lateral] == 0 {
+            target[(ribbon_i as isize + offset) as usize] = source[real_i];
+            moved = true;
+        }
     }
+    moved
 }
 
 fn next_pixel(
@@ -57,47 +64,45 @@ fn next_pixel(
     ribbon_i: usize,
     real_i: usize,
 ) {
-    let (x, y) = cfg.index_to_coords(ribbon_i);
-    let (_, real_y) = cfg.index_to_coords(real_i);
     let mut moved = false;
-    let ribbon_height = cfg.height / cfg.n_threads;
-    if real_y < cfg.height - 1 {
-        if y < ribbon_height && source[real_i] != 0 {
-            let below = real_i + cfg.width;
-            if source[below] == 0 {
-                target[ribbon_i] = source[real_i];
-                moved = true;
-            }
-            // let lateral_modifier = cfg.rng.gen_range(0..2) as isize * 2 - 1;
-            // let lateral_modifier = 1;
-            // if x as isize + lateral_modifier >= 0
-            //     && x as isize + lateral_modifier < cfg.width as isize
-            //     && !moved
-            // {
-            //     let below_lateral = ((real_i + cfg.width) as isize + lateral_modifier) as usize;
-            //     if source[below_lateral] == 0 {
-            //         target[(ribbon_i as isize + lateral_modifier) as usize] = source[real_i];
-            //         moved = true;
-            //     }
-            // }
-            // if x as isize - lateral_modifier >= 0
-            //     && x as isize - lateral_modifier < cfg.width as isize
-            //     && !moved
-            // {
-            //     let below_lateral = ((real_i + cfg.width) as isize - lateral_modifier) as usize;
-            //     if source[below_lateral] == 0 {
-            //         target[(ribbon_i as isize - lateral_modifier) as usize ] = source[real_i];
-            //         moved = true;
-            //     }
-            // }
+    let (x, y) = cfg.index_to_coords(ribbon_i);
+    let real_y = cfg.index_to_y(real_i);
+    let within_full = real_y < cfg.height - 1;
+    let within_half_ribbon = y < cfg.ribbon_len / 2;
+    if within_full && within_half_ribbon && source[real_i] != 0 {
+        let below = real_i + cfg.width;
+        if source[below] == 0 {
+            target[ribbon_i + cfg.width] = source[real_i];
+            moved = true;
+        }
+        let lateral_modifier = 1;
+        if !moved {
+            moved = move_lateral(
+                cfg,
+                x,
+                lateral_modifier,
+                source,
+                target,
+                ribbon_i,
+                real_i,
+            )
+        }
+        if !moved {
+            moved = move_lateral(
+                cfg,
+                x,
+                -lateral_modifier,
+                source,
+                target,
+                ribbon_i,
+                real_i,
+            )
         }
     }
-    if ribbon_i >= cfg.width {
-        if moved {
-            target[ribbon_i - cfg.width] = 0;
-        } else if !moved && source[real_i] != 0 {
-            target[ribbon_i - cfg.width] = source[real_i];
-        }
+    if moved {
+        target[ribbon_i] = 0;
+    } else if !moved && source[real_i] != 0 {
+        target[ribbon_i] = source[real_i];
     }
 }
 
@@ -111,8 +116,8 @@ impl DoubleBuffer {
     pub fn new(cfg: &Config) -> DoubleBuffer {
         // Add a row of padding at the bottom
         DoubleBuffer {
-            buf_a: vec![0_u8; cfg.size + cfg.width],
-            buf_b: vec![0_u8; cfg.size + cfg.width],
+            buf_a: vec![0_u8; cfg.size],
+            buf_b: vec![0_u8; cfg.size],
             count: 0,
         }
     }
@@ -152,12 +157,12 @@ pub struct Grid {
 }
 
 fn generate_target_ribbons(
-    target: &mut Vec<u8>,
-    width: usize,
+    target: &mut [u8],
+    start: usize,
     ribbon_len: usize,
 ) -> Vec<&mut [u8]> {
-    let (_, target_without_first_row) = target.split_at_mut(width);
-    target_without_first_row.chunks_mut(ribbon_len).collect()
+    let (_, target_shifted) = target.split_at_mut(start);
+    target_shifted.chunks_mut(ribbon_len).collect()
 }
 
 impl Grid {
@@ -194,14 +199,13 @@ impl Grid {
         let ribbon_len = self.cfg.ribbon_len;
         let (source, target) = self.buf.get_pair();
         target.fill(0);
-        let mut target_ribbons =
-            generate_target_ribbons(target, self.cfg.width, ribbon_len);
+        let mut target_ribbons = generate_target_ribbons(target, 0, ribbon_len);
 
         scope(|s| {
             for (i, target) in target_ribbons.iter_mut().enumerate() {
                 let cfg = Arc::clone(&self.cfg);
                 s.spawn(move |_| {
-                    for j in 0..ribbon_len {
+                    for j in 0..(ribbon_len / 2) {
                         let real_index = i * ribbon_len + j;
                         next_pixel(&cfg, source, target, j, real_index)
                     }
@@ -210,21 +214,26 @@ impl Grid {
         })
         .unwrap();
 
+        let mut target_ribbons =
+            generate_target_ribbons(target, ribbon_len / 2, ribbon_len);
+
+        scope(|s| {
+            for (i, target) in target_ribbons.iter_mut().enumerate() {
+                let cfg = Arc::clone(&self.cfg);
+                s.spawn(move |_| {
+                    for j in 0..(ribbon_len / 2) {
+                        let real_index = i * ribbon_len + j + (ribbon_len / 2);
+                        next_pixel(&cfg, source, target, j, real_index)
+                    }
+                });
+            }
+        })
+        .unwrap();
+
         println!("Frame {frame}");
-        // thread::sleep(time::Duration::from_millis(200));
 
         self.buf.switch_buffers();
     }
-
-    // pub fn next(&mut self, frame: u32) {
-    //     self.spawn(frame);
-    //     let (source, target) = self.buf.get_pair();
-    //     target.fill(0);
-    //     for i in 0..self.cfg.size {
-    //         next_pixel(&mut self.cfg, source, target, i)
-    //     }
-    //     self.buf.switch_buffers();
-    // }
 }
 
 // #[cfg(test)]

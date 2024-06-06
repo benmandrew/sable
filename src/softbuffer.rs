@@ -15,7 +15,7 @@ fn get_buf_pixel(
     y: u32,
     screen_width: u32,
     screen_height: u32,
-    buf: &Vec<u8>,
+    buf: &[u8],
     (buf_width, buf_height): (usize, usize),
 ) -> u32 {
     let xf = x as f64 / screen_width as f64;

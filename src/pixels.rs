@@ -13,7 +13,7 @@ fn get_dims(window: &Rc<Window>) -> (u32, u32) {
     (size.width, size.height)
 }
 
-fn render(i: usize, source: &Vec<u8>, target: &mut [u8]) {
+fn render(i: usize, source: &[u8], target: &mut [u8]) {
     let v = source[i];
     let v = match v {
         0 => 0,
