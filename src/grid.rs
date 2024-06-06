@@ -14,7 +14,7 @@ pub struct Config {
 impl Config {
     fn new(width: usize, height: usize) -> Config {
         let size = width * height;
-        let n_threads = 1;
+        let n_threads = 2;
         let ribbon_len = size / n_threads;
         // let rng = rand::thread_rng();
         Config {
@@ -29,6 +29,14 @@ impl Config {
 
     fn get_dims(&self) -> (usize, usize) {
         (self.width, self.height)
+    }
+
+    fn index_to_x(&self, i: usize) -> usize {
+        i % self.width
+    }
+
+    fn index_to_y(&self, i: usize) -> usize {
+        i / self.width
     }
 
     // Computes the x and y coordinates from the flat index i
@@ -52,46 +60,43 @@ fn next_pixel(
     let (x, y) = cfg.index_to_coords(ribbon_i);
     let (_, real_y) = cfg.index_to_coords(real_i);
     let mut moved = false;
-    if real_y < cfg.height - 1 && source[ribbon_i] != 0 {
-        let below = ribbon_i + cfg.width;
-        if source[below] == 0 {
-            target[below - cfg.width] = source[ribbon_i];
-            moved = true;
-        }
-        // let lateral_modifier = cfg.rng.gen_range(0..2) as isize * 2 - 1;
-        let lateral_modifier = 1;
-        if x as isize + lateral_modifier >= 0
-            && x as isize + lateral_modifier < cfg.width as isize
-            && !moved
-        {
-            let below_lateral = cfg.coords_to_index(
-                ((x as isize) + lateral_modifier) as usize,
-                y + 1,
-            );
-            if source[below_lateral] == 0 {
-                target[below_lateral - cfg.width] = source[ribbon_i];
+    let ribbon_height = cfg.height / cfg.n_threads;
+    if real_y < cfg.height - 1 {
+        if y < ribbon_height && source[real_i] != 0 {
+            let below = real_i + cfg.width;
+            if source[below] == 0 {
+                target[ribbon_i] = source[real_i];
                 moved = true;
             }
-        }
-        if x as isize - lateral_modifier >= 0
-            && x as isize - lateral_modifier < cfg.width as isize
-            && !moved
-        {
-            let below_lateral = cfg.coords_to_index(
-                ((x as isize) - lateral_modifier) as usize,
-                y + 1,
-            );
-            if source[below_lateral] == 0 {
-                target[below_lateral - cfg.width] = source[ribbon_i];
-                moved = true;
-            }
+            // let lateral_modifier = cfg.rng.gen_range(0..2) as isize * 2 - 1;
+            // let lateral_modifier = 1;
+            // if x as isize + lateral_modifier >= 0
+            //     && x as isize + lateral_modifier < cfg.width as isize
+            //     && !moved
+            // {
+            //     let below_lateral = ((real_i + cfg.width) as isize + lateral_modifier) as usize;
+            //     if source[below_lateral] == 0 {
+            //         target[(ribbon_i as isize + lateral_modifier) as usize] = source[real_i];
+            //         moved = true;
+            //     }
+            // }
+            // if x as isize - lateral_modifier >= 0
+            //     && x as isize - lateral_modifier < cfg.width as isize
+            //     && !moved
+            // {
+            //     let below_lateral = ((real_i + cfg.width) as isize - lateral_modifier) as usize;
+            //     if source[below_lateral] == 0 {
+            //         target[(ribbon_i as isize - lateral_modifier) as usize ] = source[real_i];
+            //         moved = true;
+            //     }
+            // }
         }
     }
     if ribbon_i >= cfg.width {
         if moved {
             target[ribbon_i - cfg.width] = 0;
-        } else if !moved && source[ribbon_i] != 0 {
-            target[ribbon_i - cfg.width] = source[ribbon_i];
+        } else if !moved && source[real_i] != 0 {
+            target[ribbon_i - cfg.width] = source[real_i];
         }
     }
 }
@@ -189,17 +194,11 @@ impl Grid {
         let ribbon_len = self.cfg.ribbon_len;
         let (source, target) = self.buf.get_pair();
         target.fill(0);
-        let source_ribbons: Vec<&[u8]> =
-            source.chunks_exact(ribbon_len).collect();
         let mut target_ribbons =
             generate_target_ribbons(target, self.cfg.width, ribbon_len);
 
         scope(|s| {
-            for (i, (source, target)) in source_ribbons
-                .iter()
-                .zip(target_ribbons.iter_mut())
-                .enumerate()
-            {
+            for (i, target) in target_ribbons.iter_mut().enumerate() {
                 let cfg = Arc::clone(&self.cfg);
                 s.spawn(move |_| {
                     for j in 0..ribbon_len {
