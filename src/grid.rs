@@ -4,7 +4,7 @@ use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::{self, ChaCha8Rng};
 use std::sync::Arc;
 
-static N_THREADS: usize = 2;
+static N_THREADS: usize = 4;
 
 pub struct Config {
     width: usize,
@@ -15,6 +15,12 @@ pub struct Config {
 
 impl Config {
     fn new(width: usize, height: usize) -> Config {
+        let rem = height % (N_THREADS * 2);
+        let mut height = height;
+        if rem != 0 {
+            height -= rem;
+            println!("Warning: grid height must be divisible by N_THREADS * 2. Reducing {} to {}", height + rem, height);
+        }
         let size = width * height;
         let ribbon_len = size / N_THREADS;
         Config {
@@ -141,6 +147,14 @@ impl DoubleBuffer {
         }
     }
 
+    fn get_back_mut(&mut self) -> &mut Vec<u8> {
+        if self.count % 2 == 0 {
+            &mut self.buf_b
+        } else {
+            &mut self.buf_a
+        }
+    }
+
     fn get_pair(&mut self) -> (&Vec<u8>, &mut Vec<u8>) {
         if self.count % 2 == 0 {
             (&self.buf_a, &mut self.buf_b)
@@ -154,11 +168,7 @@ impl DoubleBuffer {
     }
 
     fn empty_back(&mut self) {
-        if self.count % 2 == 0 {
-            self.buf_b.fill(0)
-        } else {
-            self.buf_a.fill(0)
-        }
+        self.get_back_mut().fill(0)
     }
 }
 
@@ -228,20 +238,18 @@ impl Grid {
         self.propagate_half(self.cfg.ribbon_len / 2)
     }
 
-    pub fn next(&mut self, frame: u32) {
-        println!("Frame {frame}");
-        self.spawn(frame);
+    pub fn next(&mut self) {
         self.propagate();
         self.buf.switch_buffers();
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     #[test]
-//     fn internal() {
-//         let g = Grid::new(4, 8, 0);
-//     }
-// }
+    #[test]
+    fn internal() {
+        let g = Grid::new(4, 8, 0);
+    }
+}

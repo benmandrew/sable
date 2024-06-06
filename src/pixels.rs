@@ -26,7 +26,7 @@ fn handle_redraw_request(
     window: &Rc<Window>,
     pixels: &mut Pixels,
     grid: &mut Grid,
-    frame_i: u32,
+    frame: u32,
 ) {
     let (width, height) = get_dims(window);
     pixels.resize_surface(width, height).unwrap();
@@ -36,7 +36,8 @@ fn handle_redraw_request(
         render(i, source, pixel)
     }
     pixels.render().unwrap();
-    grid.next(frame_i);
+    grid.spawn(frame);
+    grid.next();
     window.request_redraw();
 }
 

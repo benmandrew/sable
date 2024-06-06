@@ -60,9 +60,8 @@ fn handle_redraw_request(
         );
     }
     buffer.present().unwrap();
-    // Every 0.1 seconds
-    // sleep(Duration::new(0, 100000000));
-    grid.next(frame);
+    grid.spawn(frame);
+    grid.next();
     window.request_redraw();
 }
 
