@@ -1,4 +1,7 @@
 use crossbeam::scope;
+use rand::RngCore;
+use rand_chacha::rand_core::SeedableRng;
+use rand_chacha::{self, ChaCha8Rng};
 use std::sync::Arc;
 
 static N_THREADS: usize = 2;
@@ -149,11 +152,20 @@ impl DoubleBuffer {
     fn switch_buffers(&mut self) {
         self.count += 1
     }
+
+    fn empty_back(&mut self) {
+        if self.count % 2 == 0 {
+            self.buf_b.fill(0)
+        } else {
+            self.buf_a.fill(0)
+        }
+    }
 }
 
 pub struct Grid {
     cfg: Arc<Config>,
     buf: DoubleBuffer,
+    rng: ChaCha8Rng,
 }
 
 fn generate_target_ribbons(
@@ -166,10 +178,11 @@ fn generate_target_ribbons(
 }
 
 impl Grid {
-    pub fn new(width: usize, height: usize) -> Grid {
+    pub fn new(width: usize, height: usize, seed: u64) -> Grid {
         let cfg = Arc::new(Config::new(width, height));
         let buf = DoubleBuffer::new(&cfg);
-        Grid { cfg, buf }
+        let rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
+        Grid { cfg, buf, rng }
     }
 
     pub fn get_front(&self) -> &Vec<u8> {
@@ -182,56 +195,43 @@ impl Grid {
 
     pub fn spawn(&mut self, frame: u32) {
         let source = self.buf.get_front_mut();
-        if frame % 4 == 0 {
-            for i in 0..(self.cfg.width / 4) {
-                // let i = self.cfg.rng.gen_range(0..self.cfg.width);
-                let j = i * 4;
-                if source[j] == 0 {
-                    source[j] = ((frame / 5) % 254 + 1) as u8;
-                }
+        for _ in 0..(self.cfg.width / 20 + 1) {
+            let i = self.rng.next_u32() as usize % self.cfg.width;
+            if source[i] == 0 {
+                source[i] = ((frame / 5) % 254 + 1) as u8;
             }
         }
     }
 
-    pub fn next(&mut self, frame: u32) {
-        self.spawn(frame);
-
-        let ribbon_len = self.cfg.ribbon_len;
+    fn propagate_half(&mut self, offset: usize) {
         let (source, target) = self.buf.get_pair();
-        target.fill(0);
-        let mut target_ribbons = generate_target_ribbons(target, 0, ribbon_len);
-
-        scope(|s| {
-            for (i, target) in target_ribbons.iter_mut().enumerate() {
-                let cfg = Arc::clone(&self.cfg);
-                s.spawn(move |_| {
-                    for j in 0..(ribbon_len / 2) {
-                        let real_index = i * ribbon_len + j;
-                        next_pixel(&cfg, source, target, j, real_index)
-                    }
-                });
-            }
-        })
-        .unwrap();
-
         let mut target_ribbons =
-            generate_target_ribbons(target, ribbon_len / 2, ribbon_len);
-
+            generate_target_ribbons(target, offset, self.cfg.ribbon_len);
+        let ribbon_len = self.cfg.ribbon_len;
         scope(|s| {
             for (i, target) in target_ribbons.iter_mut().enumerate() {
                 let cfg = Arc::clone(&self.cfg);
                 s.spawn(move |_| {
                     for j in 0..(ribbon_len / 2) {
-                        let real_index = i * ribbon_len + j + (ribbon_len / 2);
+                        let real_index = i * ribbon_len + j + offset;
                         next_pixel(&cfg, source, target, j, real_index)
                     }
                 });
             }
         })
         .unwrap();
+    }
 
+    fn propagate(&mut self) {
+        self.buf.empty_back();
+        self.propagate_half(0);
+        self.propagate_half(self.cfg.ribbon_len / 2)
+    }
+
+    pub fn next(&mut self, frame: u32) {
         println!("Frame {frame}");
-
+        self.spawn(frame);
+        self.propagate();
         self.buf.switch_buffers();
     }
 }
@@ -242,8 +242,6 @@ impl Grid {
 
 //     #[test]
 //     fn internal() {
-//         let g = Grid::new(4, 8);
-//         let v = g.cfg.split(g.buf.get_front(), 0, 8, 4);
-//         assert_eq!(v.len(), 4);
+//         let g = Grid::new(4, 8, 0);
 //     }
 // }
