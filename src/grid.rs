@@ -3,6 +3,7 @@ use rand::RngCore;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::{self, ChaCha8Rng};
 use std::sync::Arc;
+use std::vec;
 
 static N_THREADS: usize = 4;
 
@@ -178,6 +179,22 @@ pub struct Grid {
     rng: ChaCha8Rng,
 }
 
+impl std::fmt::Display for Grid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (w, _) = self.get_dims();
+        let s = self
+            .get_front()
+            .iter()
+            .map(|c| format!("{: >4}", c))
+            .collect::<Vec<_>>()
+            .chunks(w)
+            .map(|c| c.join(" "))
+            .collect::<Vec<_>>()
+            .join("\n");
+        write!(f, "{}", s)
+    }
+}
+
 fn generate_target_ribbons(
     target: &mut [u8],
     start: usize,
@@ -242,6 +259,13 @@ impl Grid {
         self.propagate();
         self.buf.switch_buffers();
     }
+
+    #[cfg(test)]
+    fn set_px(&mut self, x: usize, y: usize, v: u8) {
+        let (w, _) = self.get_dims();
+        let buf = self.buf.get_front_mut();
+        buf[y * w + x] = v
+    }
 }
 
 #[cfg(test)]
@@ -250,6 +274,9 @@ mod tests {
 
     #[test]
     fn internal() {
-        let g = Grid::new(4, 8, 0);
+        let mut g = Grid::new(4, 8, 0);
+        g.set_px(0, 0, 255);
+        g.set_px(0, 1, 255);
+        println!("{}", g.to_string())
     }
 }
