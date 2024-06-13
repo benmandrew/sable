@@ -15,15 +15,16 @@ pub struct Config {
 }
 
 impl Config {
-    fn new(width: usize, height: usize) -> Config {
-        let rem = height % (N_THREADS * 2);
+    fn new(width: usize, height: usize, n_threads: Option<usize>) -> Config {
+        let n_threads = n_threads.unwrap_or(N_THREADS);
+        let rem = height % (n_threads * 2);
         let mut height = height;
         if rem != 0 {
             height -= rem;
             println!("Warning: grid height must be divisible by N_THREADS * 2. Reducing {} to {}", height + rem, height);
         }
         let size = width * height;
-        let ribbon_len = size / N_THREADS;
+        let ribbon_len = size / n_threads;
         Config {
             width,
             height,
@@ -58,9 +59,12 @@ fn move_lateral(
 ) -> bool {
     let mut moved = false;
     if x as isize + offset >= 0 && x as isize + offset < cfg.width as isize {
-        let below_lateral = ((real_i + cfg.width) as isize + offset) as usize;
-        if source[below_lateral] == 0 {
-            target[(ribbon_i as isize + offset) as usize] = source[real_i];
+        let below_lateral_real =
+            ((real_i + cfg.width) as isize + offset) as usize;
+        if source[below_lateral_real] == 0 {
+            let below_lateral =
+                ((ribbon_i + cfg.width) as isize + offset) as usize;
+            target[below_lateral] = source[real_i];
             moved = true;
         }
     }
@@ -80,33 +84,15 @@ fn next_pixel(
     let within_full = real_y < cfg.height - 1;
     let within_half_ribbon = y < cfg.ribbon_len / 2;
     if within_full && within_half_ribbon && source[real_i] != 0 {
-        let below = real_i + cfg.width;
-        if source[below] == 0 {
+        if source[real_i + cfg.width] == 0 {
             target[ribbon_i + cfg.width] = source[real_i];
             moved = true;
         }
-        let lateral_modifier = 1;
         if !moved {
-            moved = move_lateral(
-                cfg,
-                x,
-                lateral_modifier,
-                source,
-                target,
-                ribbon_i,
-                real_i,
-            )
+            moved = move_lateral(cfg, x, 1, source, target, ribbon_i, real_i)
         }
         if !moved {
-            moved = move_lateral(
-                cfg,
-                x,
-                -lateral_modifier,
-                source,
-                target,
-                ribbon_i,
-                real_i,
-            )
+            moved = move_lateral(cfg, x, -1, source, target, ribbon_i, real_i)
         }
     }
     if moved {
@@ -179,19 +165,37 @@ pub struct Grid {
     rng: ChaCha8Rng,
 }
 
+fn count_leading_whitespace(s: &str) -> usize {
+    s.chars().take_while(|c| c.is_whitespace()).count()
+}
+
+fn skip_n_chars(s: &str, n: usize) -> String {
+    s.chars().skip(n).collect::<String>()
+}
+
 impl std::fmt::Display for Grid {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (w, _) = self.get_dims();
-        let s = self
+        let rows = self
             .get_front()
-            .iter()
-            .map(|c| format!("{: >4}", c))
-            .collect::<Vec<_>>()
             .chunks(w)
-            .map(|c| c.join(" "))
-            .collect::<Vec<_>>()
-            .join("\n");
-        write!(f, "{}", s)
+            .map(|row| {
+                row.iter()
+                    .map(|c| format!("{: >4}", c))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .collect::<Vec<_>>();
+        let rows_leading_whitespace = rows
+            .iter()
+            .map(|s| count_leading_whitespace(s))
+            .min()
+            .unwrap_or(0);
+        let stripped_rows = rows
+            .iter()
+            .map(|s| skip_n_chars(s, rows_leading_whitespace))
+            .collect::<Vec<_>>();
+        write!(fmt, "{}", stripped_rows.join("\n"))
     }
 }
 
@@ -205,8 +209,13 @@ fn generate_target_ribbons(
 }
 
 impl Grid {
-    pub fn new(width: usize, height: usize, seed: u64) -> Grid {
-        let cfg = Arc::new(Config::new(width, height));
+    pub fn new(
+        width: usize,
+        height: usize,
+        n_threads: Option<usize>,
+        seed: u64,
+    ) -> Grid {
+        let cfg = Arc::new(Config::new(width, height, n_threads));
         let buf = DoubleBuffer::new(&cfg);
         let rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
         Grid { cfg, buf, rng }
@@ -236,10 +245,10 @@ impl Grid {
             generate_target_ribbons(target, offset, self.cfg.ribbon_len);
         let ribbon_len = self.cfg.ribbon_len;
         scope(|s| {
-            for (i, target) in target_ribbons.iter_mut().enumerate() {
+            for (i, target) in target_ribbons.iter_mut().enumerate().rev() {
                 let cfg = Arc::clone(&self.cfg);
                 s.spawn(move |_| {
-                    for j in 0..(ribbon_len / 2) {
+                    for j in (0..(ribbon_len / 2)).rev() {
                         let real_index = i * ribbon_len + j + offset;
                         next_pixel(&cfg, source, target, j, real_index)
                     }
@@ -251,8 +260,8 @@ impl Grid {
 
     fn propagate(&mut self) {
         self.buf.empty_back();
+        self.propagate_half(self.cfg.ribbon_len / 2);
         self.propagate_half(0);
-        self.propagate_half(self.cfg.ribbon_len / 2)
     }
 
     pub fn next(&mut self) {
@@ -271,12 +280,113 @@ impl Grid {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use insta::assert_snapshot;
 
     #[test]
-    fn internal() {
-        let mut g = Grid::new(4, 8, 0);
-        g.set_px(0, 0, 255);
+    fn stays_on_ground() {
+        let mut g = Grid::new(3, 2, Some(1), 0);
+        g.set_px(1, 1, 2);
+        assert_snapshot!(g.to_string(), @r#"
+            0    0    0
+            0    2    0
+        "#);
+        g.next();
+        assert_snapshot!(g.to_string(), @r#"
+            0    0    0
+            0    2    0
+        "#);
+    }
+
+    #[test]
+    fn falls_straight() {
+        let mut g = Grid::new(3, 2, Some(1), 0);
+        g.set_px(1, 0, 2);
+        assert_snapshot!(g.to_string(), @r#"
+            0    2    0
+            0    0    0
+        "#);
+        g.next();
+        assert_snapshot!(g.to_string(), @r#"
+            0    0    0
+            0    2    0
+        "#);
+    }
+
+    #[test]
+    fn falls_laterally() {
+        let mut g = Grid::new(3, 2, Some(1), 0);
         g.set_px(0, 1, 255);
-        println!("{}", g.to_string())
+        g.set_px(0, 0, 255);
+        assert_snapshot!(g.to_string(), @r#"
+            255    0    0
+            255    0    0
+        "#);
+        g.next();
+        assert_snapshot!(g.to_string(), @r#"
+              0    0    0
+            255  255    0
+        "#);
+    }
+
+    #[test]
+    fn falls_laterally_both() {
+        let mut g = Grid::new(3, 6, Some(1), 0);
+        g.set_px(1, 4, 3);
+        g.set_px(1, 2, 3);
+        g.set_px(1, 0, 3);
+        assert_snapshot!(g.to_string(), @r#"
+            0    3    0
+            0    0    0
+            0    3    0
+            0    0    0
+            0    3    0
+            0    0    0
+        "#);
+        g.next();
+        assert_snapshot!(g.to_string(), @r#"
+            0    0    0
+            0    3    0
+            0    0    0
+            0    3    0
+            0    0    0
+            0    3    0
+        "#);
+    }
+
+    #[test]
+    fn falls_laterally_both_multithreaded() {
+        let mut g = Grid::new(3, 6, Some(3), 0);
+        g.set_px(1, 4, 3);
+        g.set_px(1, 2, 3);
+        g.set_px(1, 0, 3);
+        assert_snapshot!(g.to_string(), @r#"
+            0    3    0
+            0    0    0
+            0    3    0
+            0    0    0
+            0    3    0
+            0    0    0
+        "#);
+        g.next();
+        assert_snapshot!(g.to_string(), @r#"
+            0    0    0
+            0    3    0
+            0    0    0
+            0    3    0
+            0    0    0
+            0    3    0
+        "#);
+        g.next();
+        g.next();
+        g.next();
+        g.next();
+        assert_snapshot!(g.to_string(), @r#"
+            0    0    0
+            0    0    0
+            0    0    0
+            0    0    0
+            0    0    0
+            3    3    3
+        "#);
     }
 }

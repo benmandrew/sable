@@ -7,6 +7,7 @@ edition = "2021"
 bmp-rust = "0.4.1"
 clap = { version = "4.5.4", features = ["derive"] }
 crossbeam = "0.8.4"
+insta = "1.39.0"
 pixels = "0.13.0"
 rand = "0.8.5"
 rand_chacha = "0.3.1"

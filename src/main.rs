@@ -44,6 +44,6 @@ fn main() {
     } else {
         panic!()
     };
-    let mut s = grid::Grid::new(400, 400, 0);
+    let mut s = grid::Grid::new(100, 100, None, 0);
     main(&mut s);
 }
