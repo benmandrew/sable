@@ -163,6 +163,7 @@ pub struct Grid {
     cfg: Arc<Config>,
     buf: DoubleBuffer,
     rng: ChaCha8Rng,
+    convert_colour: fn(f64) -> u32,
 }
 
 fn count_leading_whitespace(s: &str) -> usize {
@@ -214,11 +215,21 @@ impl Grid {
         height: usize,
         n_threads: Option<usize>,
         seed: u64,
+        convert_colour: fn(f64) -> u32,
     ) -> Grid {
         let cfg = Arc::new(Config::new(width, height, n_threads));
         let buf = DoubleBuffer::new(&cfg);
         let rng = rand_chacha::ChaCha8Rng::seed_from_u64(seed);
-        Grid { cfg, buf, rng }
+        Grid {
+            cfg,
+            buf,
+            rng,
+            convert_colour,
+        }
+    }
+
+    pub fn convert_colour(&self, v: f64) -> u32 {
+        (self.convert_colour)(v)
     }
 
     pub fn get_front(&self) -> &Vec<u8> {
@@ -282,9 +293,11 @@ mod tests {
     use super::*;
     use insta::assert_snapshot;
 
+    const DUMMY_CONVERT_COLOUR: fn(f64) -> u32 = |v: f64| v as u32;
+
     #[test]
     fn stays_on_ground() {
-        let mut g = Grid::new(3, 2, Some(1), 0);
+        let mut g = Grid::new(3, 2, Some(1), 0, DUMMY_CONVERT_COLOUR);
         g.set_px(1, 1, 2);
         assert_snapshot!(g.to_string(), @r#"
             0    0    0
@@ -299,7 +312,7 @@ mod tests {
 
     #[test]
     fn falls_straight() {
-        let mut g = Grid::new(3, 2, Some(1), 0);
+        let mut g = Grid::new(3, 2, Some(1), 0, DUMMY_CONVERT_COLOUR);
         g.set_px(1, 0, 2);
         assert_snapshot!(g.to_string(), @r#"
             0    2    0
@@ -314,7 +327,7 @@ mod tests {
 
     #[test]
     fn falls_laterally() {
-        let mut g = Grid::new(3, 2, Some(1), 0);
+        let mut g = Grid::new(3, 2, Some(1), 0, DUMMY_CONVERT_COLOUR);
         g.set_px(0, 1, 255);
         g.set_px(0, 0, 255);
         assert_snapshot!(g.to_string(), @r#"
@@ -330,7 +343,7 @@ mod tests {
 
     #[test]
     fn falls_laterally_both() {
-        let mut g = Grid::new(3, 6, Some(1), 0);
+        let mut g = Grid::new(3, 6, Some(1), 0, DUMMY_CONVERT_COLOUR);
         g.set_px(1, 4, 3);
         g.set_px(1, 2, 3);
         g.set_px(1, 0, 3);
@@ -355,7 +368,7 @@ mod tests {
 
     #[test]
     fn falls_laterally_both_multithreaded() {
-        let mut g = Grid::new(3, 6, Some(3), 0);
+        let mut g = Grid::new(3, 6, Some(3), 0, DUMMY_CONVERT_COLOUR);
         g.set_px(1, 4, 3);
         g.set_px(1, 2, 3);
         g.set_px(1, 0, 3);

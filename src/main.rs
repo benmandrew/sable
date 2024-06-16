@@ -4,46 +4,93 @@ mod one_shot;
 mod pixels;
 mod softbuffer;
 
-use clap::{Args, Parser};
+use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(version, about, long_about = None)]
+#[command(version, about, long_about = None, propagate_version = true)]
 struct Cli {
-    #[command(flatten)]
-    frontend: Frontend,
+    #[command(subcommand)]
+    command: Commands,
+
+    #[arg(long, default_value_t = 100)]
+    width: usize,
+
+    #[arg(long, default_value_t = 100)]
+    height: usize,
+
+    #[arg(long, group = "colour")]
+    rgb_continuous: bool,
+
+    #[arg(long, group = "colour", default_value_t = true)]
+    rgb_discrete: bool,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    Realtime(RealtimeArgs),
+    Bmp(BmpArgs),
+    Terminal(TerminalArgs),
 }
 
 #[derive(Args)]
-#[group(required = true, multiple = false)]
-struct Frontend {
-    /// use `pixels` frontend
+#[group(required = false, multiple = false)]
+struct RealtimeArgs {
+    /// Use `pixels` frontend
     #[arg(long)]
+    #[arg(default_value_t = true)]
     pixels: bool,
 
-    /// use `softbuffer` frontend
+    /// Use `softbuffer` frontend
     #[arg(long)]
     softbuffer: bool,
+}
 
-    /// use `one-shot` frontend
-    #[arg(long)]
-    one_shot: bool,
+#[derive(Args)]
+struct BmpArgs {
+    #[arg(short, long, default_value_t = String::from("out.bmp"))]
+    output: String,
+
+    #[arg(short, long)]
+    n_iterations: usize,
+}
+
+#[derive(Args)]
+struct TerminalArgs {
+    #[arg(short, long)]
+    n_iterations: usize,
+}
+
+fn get_convert_colour(cli: &Cli) -> fn(f64) -> u32 {
+    if cli.rgb_continuous {
+        colour::hsv_to_rgb
+    } else if cli.rgb_discrete {
+        colour::discrete_rgb
+    } else {
+        panic!("Colour conversion function is not set")
+    }
 }
 
 fn main() {
     let cli = Cli::parse();
-    let frontend = &cli.frontend;
-    let main = if frontend.pixels {
-        println!("Using 'pixels' frontend");
-        pixels::main
-    } else if frontend.softbuffer {
-        println!("Using 'softbuffer' frontend");
-        softbuffer::main
-    } else if frontend.one_shot {
-        println!("Using 'one-shot' frontend");
-        one_shot::main
-    } else {
-        panic!()
+    let convert_colour = get_convert_colour(&cli);
+    let mut g = grid::Grid::new(cli.width, cli.height, None, 0, convert_colour);
+    match &cli.command {
+        Commands::Realtime(cmd) => {
+            if cmd.pixels {
+                println!("Using 'pixels' frontend");
+                pixels::main(&mut g)
+            } else if cmd.softbuffer {
+                println!("Using 'softbuffer' frontend");
+                softbuffer::main(&mut g)
+            } else {
+                panic!("Frontend is not set")
+            }
+        }
+        Commands::Bmp(cmd) => {
+            one_shot::main_bmp(&mut g, cmd.n_iterations, cmd.output.as_str())
+        }
+        Commands::Terminal(cmd) => {
+            one_shot::main_terminal(&mut g, cmd.n_iterations)
+        }
     };
-    let mut s = grid::Grid::new(100, 100, None, 0);
-    main(&mut s);
 }

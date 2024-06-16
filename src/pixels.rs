@@ -5,7 +5,6 @@ use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
-use crate::colour;
 use crate::grid::Grid;
 
 fn get_dims(window: &Rc<Window>) -> (u32, u32) {
@@ -13,11 +12,11 @@ fn get_dims(window: &Rc<Window>) -> (u32, u32) {
     (size.width, size.height)
 }
 
-fn render(i: usize, source: &[u8], target: &mut [u8]) {
+fn render(grid: &Grid, i: usize, source: &[u8], target: &mut [u8]) {
     let v = source[i];
     let v = match v {
         0 => 0,
-        v => colour::hsv_to_rgb(v as f64),
+        v => grid.convert_colour(v as f64),
     };
     target.copy_from_slice(&v.to_ne_bytes());
 }
@@ -33,7 +32,7 @@ fn handle_redraw_request(
     let target = pixels.frame_mut();
     let source = grid.get_front();
     for (i, pixel) in target.chunks_exact_mut(4).enumerate() {
-        render(i, source, pixel)
+        render(grid, i, source, pixel)
     }
     pixels.render().unwrap();
     grid.spawn(frame);
@@ -43,7 +42,6 @@ fn handle_redraw_request(
 
 pub fn main(grid: &mut Grid) {
     let (width, height) = grid.get_dims();
-    grid.spawn(0);
     let event_loop = EventLoop::new().unwrap();
     let window = {
         let size = LogicalSize::new(width as f64, height as f64);

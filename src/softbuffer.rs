@@ -7,10 +7,10 @@ use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
-use crate::colour;
 use crate::grid::Grid;
 
 fn get_buf_pixel(
+    grid: &Grid,
     x: u32,
     y: u32,
     screen_width: u32,
@@ -26,7 +26,7 @@ fn get_buf_pixel(
     if v == 0 {
         0
     } else {
-        colour::hsv_to_rgb(v as f64)
+        grid.convert_colour(v as f64)
     }
 }
 
@@ -51,6 +51,7 @@ fn handle_redraw_request(
         let y = i / width;
         let x = i % width;
         buffer[i as usize] = get_buf_pixel(
+            grid,
             x,
             y,
             width,
