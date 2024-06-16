@@ -18,6 +18,9 @@ struct Cli {
     #[arg(long, default_value_t = 100)]
     height: usize,
 
+    #[arg(short = 't', long = "threads", default_value_t = 4)]
+    n_threads: usize,
+
     #[arg(long, group = "colour")]
     rgb_continuous: bool,
 
@@ -50,13 +53,13 @@ struct BmpArgs {
     #[arg(short, long, default_value_t = String::from("out.bmp"))]
     output: String,
 
-    #[arg(short, long)]
+    #[arg(short = 'i', long = "iterations")]
     n_iterations: usize,
 }
 
 #[derive(Args)]
 struct TerminalArgs {
-    #[arg(short, long)]
+    #[arg(short = 'i', long = "iterations")]
     n_iterations: usize,
 }
 
@@ -73,7 +76,7 @@ fn get_convert_colour(cli: &Cli) -> fn(f64) -> u32 {
 fn main() {
     let cli = Cli::parse();
     let convert_colour = get_convert_colour(&cli);
-    let mut g = grid::Grid::new(cli.width, cli.height, None, 0, convert_colour);
+    let mut g = grid::Grid::new(cli.width, cli.height, cli.n_threads, 0, convert_colour);
     match &cli.command {
         Commands::Realtime(cmd) => {
             if cmd.pixels {
