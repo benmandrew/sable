@@ -12,7 +12,7 @@ Basic falling sand simulation. Sand grains fall according to three simple rules:
 
 The simulation can either run in real-time in a window, or as a one-shot. For the latter, this can either produce a BMP image, or write the final values to the terminal.
 
-(In the examples below, custom flags are used. These can be inspected using the `--help` flag.)
+(In the examples below, custom flags are used but not shown. They can be inspected using the `--help` flag.)
 
 ```sh
 $ sable realtime
