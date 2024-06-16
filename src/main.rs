@@ -21,10 +21,10 @@ struct Cli {
     #[arg(short = 't', long = "threads", default_value_t = 4)]
     n_threads: usize,
 
-    #[arg(long, group = "colour")]
+    #[arg(long, group = "colour", default_value_t = true)]
     rgb_continuous: bool,
 
-    #[arg(long, group = "colour", default_value_t = true)]
+    #[arg(long, group = "colour")]
     rgb_discrete: bool,
 }
 
@@ -76,7 +76,13 @@ fn get_convert_colour(cli: &Cli) -> fn(f64) -> u32 {
 fn main() {
     let cli = Cli::parse();
     let convert_colour = get_convert_colour(&cli);
-    let mut g = grid::Grid::new(cli.width, cli.height, cli.n_threads, 0, convert_colour);
+    let mut g = grid::Grid::new(
+        cli.width,
+        cli.height,
+        cli.n_threads,
+        0,
+        convert_colour,
+    );
     match &cli.command {
         Commands::Realtime(cmd) => {
             if cmd.pixels {

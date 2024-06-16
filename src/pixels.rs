@@ -47,7 +47,7 @@ pub fn main(grid: &mut Grid) {
         let size = LogicalSize::new(width as f64, height as f64);
         Rc::new(
             WindowBuilder::new()
-                .with_title("Hello Pixels")
+                .with_title("Sable")
                 .with_inner_size(size)
                 .with_min_inner_size(size)
                 .build(&event_loop)
